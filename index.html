@@ -1,0 +1,201 @@
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>雪の日</title>
+  </head>
+  <style>
+    .center-box {
+      text-align: center;
+    }
+    .large-text {
+      font-size: 4rem;
+    }
+  </style>
+  <body>
+    <h1>傘は必要ですか？</h1>
+    <script src="https://cdn.jsdelivr.net/npm/p5"></script>
+    <script src="https://unpkg.com/ml5@0.4.3/dist/ml5.min.js"></script>
+    <p class="center-box"><img id="mic" src="micoff.svg" /></p>
+    <div id="result-div" class="large-text"></div>
+    <script>
+      //カメラ部分
+      let video;
+      let poseNet;
+      let poses = [];
+      let skeletons = [];
+      let rain = 10;
+      let x = [];
+      let y = [418, 148, 503, 307, 484, 60, 149, 229, 586, 267, 40];
+      let c = 0;
+      let angle = 0.0;
+
+      function setup() {
+        createCanvas(640, 480);
+        video = createCapture(VIDEO);
+
+        // Create a new poseNet method with a single detection
+        poseNet = ml5.poseNet(video, modelReady);
+        // This sets up an event that fills the global variable "poses"
+        // with an array every time new poses are detected
+        poseNet.on("pose", function (results) {
+          poses = results;
+        });
+        // Hide the video element, and just show the canvas
+        video.hide();
+      }
+
+      function modelReady() {
+        select("#status").html("Model Loaded");
+      }
+    </script>
+    <script>
+      function draw() {
+        image(video, 0, 0, width, height);
+        fill(255);
+
+        background(0, 0, 0, 0);
+        ellipse(0, y[0], 10, 10);
+        ellipse(64, y[1], 10, 10);
+        ellipse(128, y[2], 10, 10);
+        ellipse(192, y[3], 10, 10);
+        ellipse(256, y[4], 10, 10);
+        ellipse(320, y[5], 10, 10);
+        ellipse(384, y[6], 10, 10);
+        ellipse(448, y[7], 10, 10);
+        ellipse(512, y[8], 10, 10);
+        ellipse(576, y[9], 10, 10);
+        ellipse(640, y[10], 10, 10);
+        for (i = 0; i <= 10; i++) {
+          y[i] = y[i] + 10;
+          if (y[i] > 480) {
+            y[i] = 0;
+          }
+        }
+
+        // We can call both functions to draw all keypoints and the skeletons
+        drawKeypoints();
+        drawSkeleton();
+      }
+
+      // A function to draw ellipses over the detected keypoints
+      function drawKeypoints() {
+        // Loop through all the poses detected
+        for (let i = 0; i < poses.length; i++) {
+          // For each pose detected, loop through all the keypoints
+
+          let keypoint = poses[i].pose.keypoints[0];
+          // Only draw an ellipse is the pose probability is bigger than 0.2
+          if (keypoint.score > 0.2) {
+            fill(255, 0, 0, c);
+            noStroke();
+            fill(200, 30, 50, c);
+            rotate(angle);
+            triangle(
+              keypoint.position.x - 250,
+              keypoint.position.y - 150,
+              keypoint.position.x,
+              keypoint.position.y - 230,
+              keypoint.position.x + 250,
+              keypoint.position.y - 150
+            );
+            fill(122, 89, 47, c);
+            rect(keypoint.position.x, keypoint.position.y - 150, 10, 300);
+          }
+        }
+      }
+
+      // A function to draw the skeletons
+      function drawSkeleton() {
+        // Loop through all the skeletons detected
+        for (let i = 0; i < poses.length; i++) {
+          // For every skeleton, loop through all body connections
+          for (let j = 0; j < poses[i].skeleton.length; j++) {}
+        }
+      }
+
+      //音声部分
+      const resultDiv = document.querySelector("#result-div");
+      const micDiv = document.querySelector("#mic");
+      let speakingtime = 0;
+
+      // 音声認識機能(Chrome)
+      let rec = new webkitSpeechRecognition();
+      let stopped = true;
+      rec.continuous = true;
+      rec.interimResults = false;
+      rec.lang = "ja-JP";
+
+      micDiv.onclick = function () {
+        if (stopped == true) {
+          stopped = false;
+          resultDiv.innerHTML = "";
+          rec.start();
+        } else {
+          stopped = true;
+          rec.stop();
+        }
+      };
+
+      rec.onstart = function () {
+        console.log("on start");
+        micDiv.setAttribute("src", "micon.svg");
+        speakingtime = 0;
+      };
+
+      rec.onend = function () {
+        console.log("on end");
+        micDiv.setAttribute("src", "micoff.svg");
+        if (stopped == false) {
+          setTimeout(function () {
+            rec.start();
+          }, speakingtime);
+        }
+      };
+
+      rec.onresult = function (e) {
+        rec.stop();
+        for (let i = e.resultIndex; i < e.results.length; i++) {
+          if (e.results[i].isFinal) {
+            console.log(e);
+            let text = e.results[i][0].transcript;
+            resultDiv.innerHTML = text;
+            console.log(text);
+            let reg = /傘/;
+            if (reg.test(text)) {
+              c = 255;
+            } else {
+              text = "もう一度";
+            }
+
+            speakingtime = text.length * 200;
+            console.log("estimate:", speakingtime, "ms");
+            speak(text);
+          }
+        }
+      };
+
+      // 発話機能をインスタンス化
+      let msg = new SpeechSynthesisUtterance();
+
+      function speak(text) {
+        msg.volume = 1.0; // 音量 min 0 ~ max 1
+        msg.rate = 1.0; // 速度 min 0 ~ max 10
+        msg.pitch = 1.0; // 音程 min 0 ~ max 2
+
+        msg.text = text; // 喋る内容
+        msg.lang = "ja-JP"; // en-US or ja-JP
+        //msg.lang = "en-US"; // en-US or ja-JP
+
+        // 発話実行
+        speechSynthesis.speak(msg);
+      }
+
+      // 終了時の処理
+      msg.onend = function (event) {
+        console.log("喋った時間：" + event.elapsedTime + "ms");
+      };
+    </script>
+    <!-- <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.2.0/p5.min.js"></script>
+    <script src="sketch.js"></script> -->
+  </body>
+</html>
